@@ -62,14 +62,18 @@ class stock_data():
         for val in self.data:
             file=db.load_stock_data(val)
             if not file.empty:
-                df=file
+                self.stocks[val]=file
             else :
-
                 try:
                     df = yf.Ticker(val).history(period="max")
+                    if not isinstance(df, pd.DataFrame) or df.empty:
+                        print(f"Skipping {val}: no data")
+                        continue
                     db.save_stock_data(val, df)
+                    self.stocks[val]=df
                 except Exception as e:
+                    print(f"Failed {val}: {e}")
                     continue
 
-            self.stocks[val]=df
+
         return self.stocks

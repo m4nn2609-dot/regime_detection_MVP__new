@@ -9,7 +9,9 @@ class StockDB():
         self.regimes=self.db['Regimes']
         self.SHAP=self.db['SHAP']
         self.predictions=self.db['Predictions']
+        self.forecast=self.db['Forecast']
     def save_stock_data(self,df,val):
+
         df.reset_index(inplace=True)
         data=df.to_dict(orient='records')
 
@@ -31,19 +33,21 @@ class StockDB():
         df.drop(["_id","Ticker"],axis=1,inplace=True)
         df.set_index("Date",inplace=True)
         return df
-    def save_results(self,ticker,precision,sharpe,max_dd):
+    def save_results(self,ticker,precision,sharpe,max_dd,regime_method):
         self.results.insert_one(
             {
                 "Ticker":ticker,
+                "Regime_Method":regime_method,
                 "precision":precision,
                 "max_dd":max_dd,
                 "sharpe":sharpe
 
             }
         )
-    def load_results(self,ticker):
+    def load_results(self,ticker,regime_method):
         output=self.results.find_one({
-            "Ticker":ticker
+            "Ticker":ticker,
+            "Regime_Method":regime_method
         })
         #find one returns a cursor (a string of documents)
         return output
@@ -77,3 +81,17 @@ class StockDB():
         pred.set_index("Date", inplace=True)
 
         return pred
+    def load_forecast(self,ticker):
+        out=self.forecast.find({"Ticker":ticker})
+        out=pd.DataFrame(list(out))
+        if out.empty:
+            return out
+        out.drop(['_id','Ticker'],axis=1,inplace=True)
+        out.set_index("Date",inplace=True)
+        return out
+    def save_forecast(self,df,ticker):
+        df.reset_index(inplace=True)
+        input=df.to_dict(orient='records')
+        for i in input:
+            i['Ticker']=ticker
+        self.forecast.insert_many(input)

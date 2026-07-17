@@ -5,7 +5,7 @@ from ta import volatility, trend, momentum
 def create_forward(df):
     df["Forward"] = df['Close'].shift(-5)
     return df
-
+reg_features=['Returns_5', 'High_Low_Range', 'Gap']
 
 def create_target(df):
     df['Target'] = (df['Forward'] > df['Close']).astype(int)
@@ -54,4 +54,4 @@ def regime_features(df):
     df['High_Low_Range']=(df['High']-df['Low'])/df['Close']
     df['Gap']=(df['Open']-df['Close'].shift(1))/df['Close'].shift(1)
     return df
-regime_features=['Returns_5','High_Low_Range','Gap']
+
