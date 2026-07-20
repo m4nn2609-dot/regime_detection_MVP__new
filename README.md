@@ -146,6 +146,3 @@ streamlit run app.py
 - [Stock Price Prediction V1](https://github.com/m4nn2609-dot/stock-prediction) — NIFTY 50 ensemble (RF + XGBoost + LSTM)
 - [Stock Price Prediction V2](https://github.com/m4nn2609-dot/Reets-Project) — S&P 500 with purged cross-validation
 
-## Author
-
-Mann — Currently in the Learning Phase, OSS contributor (skrub, sphinx-gallery)
