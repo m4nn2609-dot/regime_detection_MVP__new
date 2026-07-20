@@ -1,13 +1,22 @@
 import pandas as pd
-
+import numpy as np
+import traceback
 from features import add_features,create_target,create_forward,regime_features
 from database import StockDB
 from data import stock_data
 from evaluate import evaluate
+from shap_analysis import compute_shap_for_regime_models
+from model import train_regime_model, backtest_regime
 
 from forecast import forecast_price
-from model import backtest_regime
+
 from regime import fit_kmeans,fit_gmm,fit_hmm
+import logging
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="shap")
+logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+logging.getLogger("prophet").setLevel(logging.WARNING)
 db=StockDB()
 stocks=stock_data().load_data()
 print(stocks.keys())
@@ -30,37 +39,61 @@ for ticker,df in stocks.items():
         df=regime_features(df)
         print("regime_features done")
 
-        df=df.replace([float('inf'), float('-inf')], pd.NA)
+        df = df.replace([np.inf, -np.inf], np.nan)
         df=df.dropna()
         print(f"{ticker}:{len(df)} rows after dropna")
+        if df.empty:
+            print(f"{ticker}: no rows left after dropna (likely insufficient history for rolling features), skipping.")
+            continue
 
-        df=fit_kmeans(df)
-        df=fit_gmm(df)
-        df=fit_hmm(df)
 
-        db.save_regime(df[['kmeans_labels','gmm_labels','hmm_labels']],ticker)
+        df = fit_kmeans(df)
+        df = fit_gmm(df)
+        try:
+            df = fit_hmm(df)
+            methods = ["kmeans_labels", "gmm_labels", "hmm_labels"]
+        except Exception as e:
+            print(f"{ticker}: fit_hmm failed ({e}), continuing without HMM regimes.")
+            traceback.print_exc()
+            df["hmm_labels"] = -1  # placeholder so downstream column selection doesn't break
+            methods = ["kmeans_labels", "gmm_labels"]
+
+        db.save_regime(df[['kmeans_labels', 'gmm_labels', 'hmm_labels']], ticker)
         print(df.columns.tolist())
-        predictors=df.drop(['Stock Splits','Dividends','Close','Open','Target','Volume','High','Low'],axis=1).columns.tolist()
+        predictors = df.drop(
+            ['Stock Splits', 'Dividends', 'Close', 'Open', 'Target', 'Forward', 'Volume', 'High', 'Low',
+             'kmeans_labels', 'gmm_labels', 'hmm_labels'], axis=1).columns.tolist()
 
-        kmeans_preds=(backtest_regime(df,predictors,"kmeans_label"))
-        gmm_preds=(backtest_regime(df,predictors,"gmm_label"))
-        hmm_preds=(backtest_regime(df,predictors,"hmm_label"))
+        for regime_method in methods:
+            try:
+                preds = backtest_regime(df, predictors, regime_method)
+                models = train_regime_model(df, predictors, regime_method)
+                shap_df = compute_shap_for_regime_models(models, df, predictors, regime_method)
 
-        forecast=forecast_price(df)
-        db.save_forecast(forecast,ticker)
+                if not shap_df.empty:
+                    db.save_shap(shap_df, ticker, regime_method)
+                else:
+                    print(f"{ticker}/{regime_method}: SHAP empty, skipping save.")
 
-        kmeans_res=evaluate(kmeans_preds,df)
-        gmm_res=evaluate(gmm_preds,df)
-        hmm_res=evaluate(hmm_preds,df)
+                if preds is not None and not preds.empty and preds['Target'].nunique() > 1:
+                    res = evaluate(preds, df)
+                    db.save_predictions(preds, ticker)
+                    db.save_results(ticker, res['precision'], res['sharpe'], res['max_dd'], regime_method=regime_method)
+                else:
+                    print(f"{ticker}/{regime_method}: not enough backtest predictions to evaluate, skipping.")
+            except Exception as e:
+                print(f"{ticker}/{regime_method} pipeline step failed: {e}")
+                traceback.print_exc()
+                continue
 
-        db.save_predictions(gmm_preds,ticker)
-        db.save_predictions(kmeans_preds,ticker)
-        db.save_predictions(hmm_preds,ticker)
 
-        db.save_results(ticker,kmeans_res['precision'],kmeans_res['sharpe'],kmeans_res['max_dd'],regime_method='kmeans_labels')
-        db.save_results(ticker,gmm_res['precision'],gmm_res['sharpe'],gmm_res['max_dd'],regime_method="gmm_labels")
-        db.save_results(ticker,hmm_res['precision'],hmm_res['sharpe'],hmm_res['max_dd'],regime_method="hmm_labels")
-
+        try:
+            forecast = forecast_price(df)
+            db.save_forecast(forecast, ticker)
+        except Exception as e:
+            print(f"{ticker}: forecast_price failed: {e}")
+            traceback.print_exc()
 
     except Exception as e:
         print(f"{ticker} went through a problem:{e}.")
+        traceback.print_exc()

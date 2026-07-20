@@ -95,3 +95,19 @@ class StockDB():
         for i in input:
             i['Ticker']=ticker
         self.forecast.insert_many(input)
+
+    def save_shap(self, df, ticker, regime_method):
+        df = df.reset_index()
+        data = df.to_dict(orient="records")
+        for rec in data:
+            rec["Ticker"] = ticker
+            rec["Regime_Method"] = regime_method
+        self.SHAP.insert_many(data)
+
+    def load_shap(self, ticker, regime_method):
+        out = self.SHAP.find({"Ticker": ticker, "Regime_Method": regime_method})
+        out = pd.DataFrame(list(out))
+        if out.empty:
+            return out
+        out.drop(["_id", "Ticker", "Regime_Method"], axis=1, inplace=True)
+        return out

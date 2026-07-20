@@ -69,7 +69,7 @@ class stock_data():
                     if not isinstance(df, pd.DataFrame) or df.empty:
                         print(f"Skipping {val}: no data")
                         continue
-                    db.save_stock_data(val, df)
+                    db.save_stock_data(df,val)
                     self.stocks[val]=df
                 except Exception as e:
                     print(f"Failed {val}: {e}")

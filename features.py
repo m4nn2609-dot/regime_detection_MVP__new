@@ -39,7 +39,7 @@ def add_features(df):
 
     up_day = (df['Close'] > df['Close'].shift(1)).astype(int)
 
-    horizons = [2, 5, 60, 250, 1000]
+    horizons = [2, 5, 60, 250]
     for horizon in horizons:
         rolling_close = df['Close'].rolling(horizon).mean()
         df[f"Close_Ratio_{horizon}"] = df['Close'] / rolling_close
