@@ -26,7 +26,9 @@ def predict_with_regime(test_df, regime_models, predictors, regime_col="kmeans_l
         probs.append(prob[0])
         indices.append(index)
     predictions=(np.array(probs)>=0.5).astype(int)
-    return pd.Series(predictions,index=indices,name="Predictions")
+    result = pd.Series(predictions,index=indices,name="Predictions")
+    result.index.name = test_df.index.name  # preserve "Date"
+    return result
 def backtest_regime(df,predictors,regime_col="kmeans_labels",n_splits=5,gap=60):
     tscv=TimeSeriesSplit(n_splits=n_splits,gap=gap)
     results=[]
@@ -38,3 +40,14 @@ def backtest_regime(df,predictors,regime_col="kmeans_labels",n_splits=5,gap=60):
         combined=pd.concat([test['Target'],fin_preds],axis=1).dropna()
         results.append(combined)
     return pd.concat(results)
+def label_regimes(df, label_col):
+    stats = df.groupby(label_col)['Returns_5'].agg(['mean', 'std']).sort_values('mean')
+    stats['regime_name'] = "Sideways"
+    if len(stats) >= 2:
+        stats.iloc[0, stats.columns.get_loc('regime_name')] = "Bear"
+        stats.iloc[-1, stats.columns.get_loc('regime_name')] = "Bull"
+    most_volatile = stats['std'].idxmax()
+    stats.loc[most_volatile, 'regime_name'] = "High Volatility"
+    mapping = stats['regime_name'].to_dict()
+    df[f"{label_col}_name"] = df[label_col].map(mapping)
+    return df

@@ -6,11 +6,11 @@ from database import StockDB
 from data import stock_data
 from evaluate import evaluate
 from shap_analysis import compute_shap_for_regime_models
-from model import train_regime_model, backtest_regime
+from model import train_regime_model, backtest_regime,label_regimes
 
 from forecast import forecast_price
 
-from regime import fit_kmeans,fit_gmm,fit_hmm
+from regime import fit_kmeans,fit_gmm,fit_hmm,forecast_regime
 import logging
 import warnings
 
@@ -18,6 +18,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="shap")
 logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 logging.getLogger("prophet").setLevel(logging.WARNING)
 db=StockDB()
+db.clear_all()
 stocks=stock_data().load_data()
 print(stocks.keys())
 #stocks = {"RELIANCE.NS": stock_data().load_data()["RELIANCE.NS"]}
@@ -57,8 +58,13 @@ for ticker,df in stocks.items():
             traceback.print_exc()
             df["hmm_labels"] = -1  # placeholder so downstream column selection doesn't break
             methods = ["kmeans_labels", "gmm_labels"]
+        for method in methods:
+            df = label_regimes(df, method)
 
-        db.save_regime(df[['kmeans_labels', 'gmm_labels', 'hmm_labels']], ticker)
+        name_cols = [f"{m}_name" for m in methods]
+        if "hmm_labels_name" in df.columns and "hmm_labels_name" not in name_cols:
+            name_cols.append("hmm_labels_name")
+        db.save_regime(df[['kmeans_labels', 'gmm_labels', 'hmm_labels'] + name_cols], ticker)
         print(df.columns.tolist())
         predictors = df.drop(
             ['Stock Splits', 'Dividends', 'Close', 'Open', 'Target', 'Forward', 'Volume', 'High', 'Low',
@@ -89,6 +95,9 @@ for ticker,df in stocks.items():
 
         try:
             forecast = forecast_price(df)
+            for method in methods:
+                regime_forecast = forecast_regime(df, forecast, method)
+                forecast = forecast.join(regime_forecast, how="left")
             db.save_forecast(forecast, ticker)
         except Exception as e:
             print(f"{ticker}: forecast_price failed: {e}")
