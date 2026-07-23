@@ -59,14 +59,19 @@ with tab2:
     st.subheader(f"{ticker} — Backtest Results ({regime_method})")
     result = db.load_results(ticker, regime_method)
     if result:
+        precision = result.get('precision') or 0
+        sharpe = result.get('sharpe') or 0
+        max_dd = result.get('max_dd') or 0
+        strategy_return = result.get('strategy_return') or 0
+        excess = result.get('excess_return') or 0
+
         col1, col2, col3 = st.columns(3)
-        col1.metric("Precision", f"{result.get('precision', 0):.3f}")
-        col2.metric("Sharpe Ratio", f"{result.get('sharpe', 0):.3f}")
-        col3.metric("Max Drawdown", f"{result.get('max_dd', 0):.3%}")
+        col1.metric("Precision", f"{precision:.3f}")
+        col2.metric("Sharpe Ratio", f"{sharpe:.3f}")
+        col3.metric("Max Drawdown", f"{max_dd:.3%}")
 
         col4, col5 = st.columns(2)
-        excess = result.get('excess_return') or 0
-        col4.metric("Strategy Return", f"{result.get('strategy_return', 0):.2%}")
+        col4.metric("Strategy Return", f"{strategy_return:.2%}")
         col5.metric("Excess vs Buy & Hold", f"{excess:.2%}", delta=f"{excess:.2%}")
     else:
         st.warning("No results found for this ticker/method yet.")

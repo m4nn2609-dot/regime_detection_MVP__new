@@ -64,11 +64,19 @@ for ticker,df in stocks.items():
         name_cols = [f"{m}_name" for m in methods]
         if "hmm_labels_name" in df.columns and "hmm_labels_name" not in name_cols:
             name_cols.append("hmm_labels_name")
+
+        feature_cols = [c for c in df.columns if c not in
+                        ['Open', 'High', 'Low', 'Close', 'Volume', 'Dividends', 'Stock Splits', 'Target',
+                         'Forward'] + name_cols
+                        and not c.endswith('_labels') and c != 'Date']
+        df[feature_cols] = df[feature_cols].apply(pd.to_numeric, errors='coerce')
+        df = df.dropna(subset=feature_cols)
         db.save_regime(df[['kmeans_labels', 'gmm_labels', 'hmm_labels'] + name_cols], ticker)
         print(df.columns.tolist())
+
         predictors = df.drop(
             ['Stock Splits', 'Dividends', 'Close', 'Open', 'Target', 'Forward', 'Volume', 'High', 'Low',
-             'kmeans_labels', 'gmm_labels', 'hmm_labels'], axis=1).columns.tolist()
+             'kmeans_labels', 'gmm_labels', 'hmm_labels']+name_cols, axis=1).columns.tolist()
 
         for regime_method in methods:
             try:
@@ -84,7 +92,9 @@ for ticker,df in stocks.items():
                 if preds is not None and not preds.empty and preds['Target'].nunique() > 1:
                     res = evaluate(preds, df)
                     db.save_predictions(preds, ticker)
-                    db.save_results(ticker, res['precision'], res['sharpe'], res['max_dd'], regime_method=regime_method)
+                    db.save_results(ticker, res['precision'], res['sharpe'], res['max_dd'], regime_method=regime_method,
+                                    strategy_return=res['strategy_return'], buy_hold_return=res['buy_hold_return'],
+                                    excess_return=res['excess_return'])
                 else:
                     print(f"{ticker}/{regime_method}: not enough backtest predictions to evaluate, skipping.")
             except Exception as e:

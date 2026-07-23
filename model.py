@@ -22,7 +22,7 @@ def predict_with_regime(test_df, regime_models, predictors, regime_col="kmeans_l
         if regime not in regime_models:
             continue
         model=regime_models[regime]
-        prob = model.predict_proba(row[predictors].to_frame().T)[:, 1]
+        prob = model.predict_proba(row[predictors].to_frame().T.astype(float))[:, 1]
         probs.append(prob[0])
         indices.append(index)
     predictions=(np.array(probs)>=0.5).astype(int)

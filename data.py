@@ -1,5 +1,7 @@
 import yfinance as yf
 import pandas as pd
+from yfinance.utils import auto_adjust
+
 import database
 
 NIFTY50_TICKERS = [
@@ -65,7 +67,7 @@ class stock_data():
                 self.stocks[val]=file
             else :
                 try:
-                    df = yf.Ticker(val).history(period="max")
+                    df = yf.Ticker(val).history(period="max",auto_adjust=True)
                     if not isinstance(df, pd.DataFrame) or df.empty:
                         print(f"Skipping {val}: no data")
                         continue

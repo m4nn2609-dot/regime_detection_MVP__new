@@ -29,7 +29,11 @@ def forecast_regime(df, forecast_df, label_col):
     name_col = f"{label_col}_name"
     name_map = df.drop_duplicates(label_col).set_index(label_col)[name_col].to_dict() if name_col in df.columns else {}
 
-    future_only = forecast_df[forecast_df.index > df.index.max()].copy()
+    cutoff = df.index.max()
+    if getattr(cutoff, "tzinfo", None) is not None:
+        cutoff = cutoff.tz_localize(None)
+
+    future_only = forecast_df[forecast_df.index > cutoff].copy()
     future_only['Forecast_Returns_5'] = future_only['yhat'].pct_change(5)
 
     def closest_regime(x):
@@ -40,5 +44,3 @@ def forecast_regime(df, forecast_df, label_col):
     future_only['regime_id'] = future_only['Forecast_Returns_5'].apply(closest_regime)
     future_only[f"{label_col}_forecast_name"] = future_only['regime_id'].map(name_map)
     return future_only[[f"{label_col}_forecast_name"]]
-
-
